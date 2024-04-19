@@ -1,0 +1,374 @@
+
+let bits = 8;
+let pow2 = 256;
+let hex = "0123456789ABCDEF".split("");
+
+let digitToHex(digit: Int): String {
+  return "${hex[digit / 16]}${hex[digit % 16]}";
+}
+
+let reverse(lb: ListBuilder<Int>): Void {
+  for (var i = lb.length / 2 - 1; i >= 0; i--) {
+    var tmp = lb[i];
+    lb[i] = lb[lb.length - i - 1];
+    lb[lb.length - i - 1] = tmp;
+  }
+}
+
+var pow2s = new ListBuilder<Int>();
+for (var i = 1; i <= pow2; i *= 2) {
+  pow2s.add(i);
+}
+
+export class Natural {
+  public digits: Listed<Int>;
+
+  public static fromInt(i: Int): Natural {
+    var parts = new ListBuilder<Int>();
+    while (i > 0) {
+      parts.add(i % pow2);
+      i /= pow2;
+    }
+    return new Natural(parts);
+  }
+
+  public static fromString(s: String): Natural {
+    var parts = s.split("");
+    var ret = new Natural([]);
+    var ten = new Natural([10]);
+    for (var i = 0; i < parts.length; i++) {
+      ret = ret.mul(ten).add(Natural.fromInt(parts[i].codePoints.read() - 48));
+    }
+    return ret;
+  }
+
+  private maxLengthWith(other: Natural): Int {
+    var length = digits.length;
+    var otherLength = other.digits.length;
+    if (length > otherLength) {
+      return length;
+    } else {
+      return otherLength
+    }
+  }
+
+  public shl(n: Int): Natural {
+    var ret = this;
+    for (var i = 0; i < n; i++) {
+      ret = ret.add(ret);
+    }
+    return ret;
+  }
+
+  public shr(n: Int): Natural {
+    var ret = new ListBuilder<Int>();
+    var src = n / bits;
+    var div = pow2s.getOr(n % bits, 0);
+    var mul = pow2s.getOr(bits - n % bits, 0);
+    for (var i = src; i < digits.length; i++) {
+      var low = digits.getOr(i, 0);
+      var high = digits.getOr(i + 1, 0);
+      var lowPart = low / div;
+      var highPart = high * mul;
+      var full = lowPart + highPart;
+      ret.add(full % pow2);
+    }
+    while (ret.length != 0 && ret[ret.length - 1] == 0) {
+      ret.removeLast();
+    }
+    return new Natural(ret);
+  }
+
+  public cmp(other: Natural): Int {
+    for (var i = maxLengthWith(other) - 1; i >= 0; i--) {
+      var digit = digits.getOr(i, 0);
+      var otherDigit = other.digits.getOr(i, 0);
+
+      if (digit < otherDigit) {
+        return -1;
+      }
+      if (digit > otherDigit) {
+        return 1;
+      }
+    }
+    return 0;
+  }
+
+  public add(other: Natural): Natural {
+    var ret = new ListBuilder<Int>();
+    var end = maxLengthWith(other);
+    var carry = 0;
+    for (var i = 0; i < end; i++) {
+      var digit = digits.getOr(i, 0);
+      var otherDigit = other.digits.getOr(i, 0);
+      var sum = digit + otherDigit + carry;
+      if (sum >= pow2) {
+        carry = 1;
+        sum -= pow2;
+      } else {
+        carry = 0;
+      }
+      ret.add(sum);
+    }
+    ret.add(carry);
+    while (ret.length != 0 && ret[ret.length - 1] == 0) {
+      ret.removeLast();
+    }
+    return new Natural(ret);
+  }
+
+  public sub(other: Natural): Natural {
+    var ret = new ListBuilder<Int>();
+    var end = maxLengthWith(other);
+    var borrow = 0;
+    for (var i = 0; i < end; i++) {
+      var digit = digits.getOr(i, 0);
+      var otherDigit = other.digits.getOr(i, 0);
+      var diff = digit - otherDigit - borrow;
+      if (diff < 0) {
+        borrow = 1;
+        diff += pow2;
+      } else {
+        borrow = 0;
+      }
+      ret.add(diff);
+    }
+    while (ret.length != 0 && ret[ret.length - 1] == 0) {
+      ret.removeLast();
+    }
+    return new Natural(ret);
+  }
+
+  public mul(other: Natural): Natural {
+    var ret = new Natural([]);
+    for (var i = 0; i < digits.length; i++) {
+      var part = new ListBuilder<Int>();
+      var carry = 0;
+
+      for (var j = 0; j < i; j++) {
+        part.add(0);
+      }
+
+      for (var j = 0; j < other.digits.length; j++) {
+        var digit = digits.getOr(i, 0);
+        var otherDigit = other.digits.getOr(j, 0);
+        var value = digit * otherDigit + carry;
+        carry = value / pow2;
+        part.add(value % pow2);
+      }
+      
+      part.add(carry);
+
+      ret = ret.add(new Natural(part));
+    }
+    return ret;
+  }
+
+  public div(other: Natural): Natural {
+    var one = new Natural([1]);
+
+    var low = new Natural([]);
+    var high = this;
+
+    while (true) {
+      var mid = low.add(high).shr(1);
+      var midMul = mid.mul(other);
+
+      var testLow = cmp(midMul);
+
+      if (testLow < 0) {
+        high = mid;
+      } else {
+        var testHigh = cmp(midMul.add(other));
+        if (testHigh >= 0) {
+          low = mid;
+        } else {
+          return mid;
+        }
+      }
+    }
+  }
+
+  public mod(other: Natural): Natural {
+    return sub(div(other).mul(other));
+  }
+
+  public toHex(): String {
+    var rev = new ListBuilder<Int>();
+    rev.addAll(digits);
+    reverse(rev);
+    if (rev.length == 0) {
+      rev.add(0);
+    }
+    var joined = rev.join("", digitToHex);
+    return "0x${joined}";
+  }
+
+  public toString(): String {
+    var zero = new Natural([]);
+    var ten = new Natural([10]);
+    var ret = "";
+    var rest = this;
+    while (rest.cmp(zero) != 0) {
+      var next = rest.div(ten);
+      var digit = rest.sub(next.mul(ten));
+      ret = "${digit.toInt().toString()}${ret}";
+      rest = next;
+    }
+    if (ret == "") {
+      return "0";
+    }
+    return ret;
+  }
+
+  public toInt(): Int {
+    var ret = 0;
+    for (var i = 0; i < digits.length; i++) {
+      ret *= 10;
+      ret += digits[i];
+    }
+    return ret;
+  }
+}
+
+export class Integer {
+  public sign: Boolean;
+  public abs: Natural;
+
+  public static fromInt(i: Int): Integer {
+    if (i < 0) {
+      return new Integer(true, Natural.fromInt(-i));
+    } else {
+      return new Integer(false, Natural.fromInt(i));
+    }
+  }
+
+  public static fromString(s: String): Integer {
+    var parts = s.split("");
+    var ret = new Natural([]);
+    var ten = new Natural([10]);
+    var i = 0;
+    var sign = if (parts[0] == "-") {
+      i += 1;
+      true
+    } else if (parts[0] == "+") {
+      i += 1;
+      false
+    } else {
+      false
+    }
+    while (i < parts.length) {
+      ret = ret.mul(ten);
+      ret = ret.add(Natural.fromInt(parts[i].codePoints.read() - 48));
+      i += 1;
+    }
+    return new Integer(sign, ret);
+  }
+  
+  public shl(n: Int): Integer {
+    return new Integer(sign, abs.shl(n)); 
+  }
+
+  public shl(n: Int): Integer {
+    var got = abs.shl(n);
+    var zero = Natural.fromInt(0);
+    if (got.cmp(zero) == 0) {
+      return new Integer(false, zero);
+    }
+    return new Integer(sign, got); 
+  }
+
+  public cmp(other: Integer): Int {
+    if (sign == other.sign) {
+      return abs.cmp(other.abs);
+    } else {
+      if (sign) {
+        return -1;
+      } else {
+        return 1;
+      }
+    }
+  }
+
+  public neg(): Integer {
+    var zero = Natural.fromInt(0);
+    if (abs.cmp(zero) == 0) {
+      return new Integer(false, zero);
+    } else {
+      return new Integer(!sign, abs);
+    }
+  }
+
+  public add(other: Integer): Integer {
+    if (sign == other.sign) {
+      return new Integer(sign, abs.add(other.abs));
+    } else {
+      var res = abs.cmp(other.abs);
+      if (res > 0) {
+        return new Integer(sign, abs.sub(other.abs));
+      } else if (res < 0) {
+        return new Integer(other.sign, other.abs.sub(abs));
+      } else {
+        return Integer.fromInt(0);
+      }
+    }
+  }
+
+  public sub(other: Integer): Integer {
+    return add(other.neg());
+  }
+
+  public mul(other: Integer): Integer {
+    var got = abs.mul(other.abs);
+    var zero = Natural.fromInt(0);
+    if (got.cmp(zero) == 0) {
+      return new Integer(false, zero);
+    } else {
+      return new Integer(sign != other.sign, got);
+    }
+  }
+
+  public div(other: Integer): Integer {
+    var got = abs.div(other.abs);
+    var zero = Natural.fromInt(0);
+    if (got.cmp(zero) == 0) {
+      return new Integer(false, zero);
+    } else {
+      return new Integer(sign != other.sign, got);
+    }
+  }
+
+  public mod(other: Integer): Integer {
+    var got = abs.mod(other.abs);
+    var zero = Natural.fromInt(0);
+    if (got.cmp(zero) == 0) {
+      return new Integer(false, zero);
+    } else {
+      return new Integer(sign != other.sign, got);
+    }
+  }
+
+  public toHex(): String {
+    if (sign) {
+      return "-${abs.toHex()}";
+    } else {
+      return abs.toHex();
+    }
+  }
+
+  public toString(): String {
+    if (sign) {
+      return "-${abs.toString()}";
+    } else {
+      return abs.toString();
+    }
+  }
+
+  public toInt(): Int {
+    if (sign) {
+      return -abs.toInt();
+    } else {
+      return abs.toInt();
+    }
+  }
+}

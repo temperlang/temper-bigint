@@ -1,0 +1,8 @@
+{
+  "type": "module",
+  "dependencies": {
+    "@temperlang/core": "file:temper.out/js/temper-core",
+    "@temperlang/std": "file:temper.out/js/std",
+    "bigint": "file:temper.out/js/bigint"
+  }
+}
