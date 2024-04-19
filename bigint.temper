@@ -1,13 +1,16 @@
 
-let bits = 8;
-let pow2 = 256;
-let hex = "0123456789ABCDEF".split("");
-
-let digitToHex(digit: Int): String {
-  return "${hex[digit / 16]}${hex[digit % 16]}";
+let bits = 15;
+var pow2s = new ListBuilder<Int>();
+var pow2 = 1;
+for (var i = 0; i < bits; i++) {
+  pow2s.add(pow2);
+  pow2 *= 2;
 }
+let digitChars = "0123456789abcdefghijklmnopqrstuvwxyz".split("");
+var nat10 = Natural.fromInt(10);
+var natPow10Cache = new ListBuilder<Natural>();
 
-let reverse(lb: ListBuilder<Int>): Void {
+let reverse<T>(lb: ListBuilder<T>): Void {
   for (var i = lb.length / 2 - 1; i >= 0; i--) {
     var tmp = lb[i];
     lb[i] = lb[lb.length - i - 1];
@@ -15,9 +18,13 @@ let reverse(lb: ListBuilder<Int>): Void {
   }
 }
 
-var pow2s = new ListBuilder<Int>();
-for (var i = 1; i <= pow2; i *= 2) {
-  pow2s.add(i);
+let idString(s: String): String {
+  return s;
+}
+
+export class DivMod<T> {
+  public quotient: T;
+  public remainder: T;
 }
 
 export class Natural {
@@ -34,8 +41,8 @@ export class Natural {
 
   public static fromString(s: String): Natural {
     var parts = s.split("");
-    var ret = new Natural([]);
-    var ten = new Natural([10]);
+    var ret = Natural.fromInt(0);
+    var ten = Natural.fromInt(10);
     for (var i = 0; i < parts.length; i++) {
       ret = ret.mul(ten).add(Natural.fromInt(parts[i].codePoints.read() - 48));
     }
@@ -140,7 +147,7 @@ export class Natural {
   }
 
   public mul(other: Natural): Natural {
-    var ret = new Natural([]);
+    var ret = Natural.fromInt(0);
     for (var i = 0; i < digits.length; i++) {
       var part = new ListBuilder<Int>();
       var carry = 0;
@@ -164,61 +171,93 @@ export class Natural {
     return ret;
   }
 
-  public div(other: Natural): Natural {
-    var one = new Natural([1]);
-
-    var low = new Natural([]);
-    var high = this;
-
-    while (true) {
-      var mid = low.add(high).shr(1);
-      var midMul = mid.mul(other);
-
-      var testLow = cmp(midMul);
-
-      if (testLow < 0) {
-        high = mid;
-      } else {
-        var testHigh = cmp(midMul.add(other));
-        if (testHigh >= 0) {
-          low = mid;
-        } else {
-          return mid;
-        }
+  public isZero(): Boolean {
+    for (var i = 0; i < digits.length; i++) {
+      if (digits.getOr(i, 0) != 0) {
+        return false;
       }
     }
+    return true;
+  }
+
+  public bitAt(n: Int): Boolean {
+    return digits.getOr(n / bits, 0) / pow2s[n % bits] % 2 != 0;
+  }
+
+  public divmod(other: Natural): DivMod<Natural> {
+    const one = Natural.fromInt(1);
+    var n = this;
+    var d = other;
+    var r = Natural.fromInt(0);
+    var q = Natural.fromInt(0);
+    var bit = Natural.fromInt(1);
+    for (var i = n.digits.length * bits; i >= 0; i--) {
+      bit = bit.shl(1);
+    }
+    for (var i = n.digits.length * bits; i >= 0; i--) {
+      bit = bit.shr(1);
+      r = r.shl(1);
+      if (n.bitAt(i)) {
+        r = r.add(one);
+      }
+      if (r.cmp(d) >= 0) {
+        r = r.sub(d);
+        q = q.add(bit);
+      }
+    }
+    return new DivMod<Natural>(q, r);
+  }
+
+  public div(other: Natural): Natural {
+    return divmod(other).quotient;
   }
 
   public mod(other: Natural): Natural {
-    return sub(div(other).mul(other));
+    return divmod(other).remainder;
   }
 
-  public toHex(): String {
-    var rev = new ListBuilder<Int>();
-    rev.addAll(digits);
-    reverse(rev);
-    if (rev.length == 0) {
-      rev.add(0);
+  public toStringDigitsBase(base: Natural, out: ListBuilder<String>, log10: Int, cache: MapBuilder<Int, Natural>): Void {
+    if (log10 == 1) {
+      out.add(digitChars[toInt()]);
+    } else {
+      var move = log10 / 2;
+      var n = if (cache.has(move)) {
+        cache.getOr(move, this)
+      } else {
+        var n = base;
+        for (var i = 1; i < move; i++) {
+          n = n.mul(base);
+        }
+        cache[move] = n;
+        n
+      };
+      var got = divmod(n);
+      got.quotient.toStringDigitsBase(base, out, log10 - move, cache);
+      got.remainder.toStringDigitsBase(base, out, move, cache);
     }
-    var joined = rev.join("", digitToHex);
-    return "0x${joined}";
   }
 
-  public toString(): String {
-    var zero = new Natural([]);
-    var ten = new Natural([10]);
-    var ret = "";
-    var rest = this;
-    while (rest.cmp(zero) != 0) {
-      var next = rest.div(ten);
-      var digit = rest.sub(next.mul(ten));
-      ret = "${digit.toInt().toString()}${ret}";
-      rest = next;
-    }
-    if (ret == "") {
+  public toString(base: Int = 10): String {
+    if (isZero()) {
       return "0";
     }
-    return ret;
+    var ret = new ListBuilder<String>();
+    var nth = 1;
+    var nBase = Natural.fromInt(base);
+    var exp10nth = nBase;
+    while (cmp(exp10nth) > 0) {
+      exp10nth = exp10nth.mul(exp10nth);
+      nth *= 2;
+    }
+    var cache = new MapBuilder<Int, Natural>();
+    cache[nth] = exp10nth;
+    toStringDigitsBase(nBase, ret, nth, cache);
+    reverse(ret);
+    while (ret.getOr(ret.length - 1, "") == "0") {
+      ret.removeLast();
+    }
+    reverse(ret);
+    return ret.join("", idString);
   }
 
   public toInt(): Int {
@@ -245,8 +284,8 @@ export class Integer {
 
   public static fromString(s: String): Integer {
     var parts = s.split("");
-    var ret = new Natural([]);
-    var ten = new Natural([10]);
+    var ret = Natural.fromInt(0);
+    var ten = Natural.fromInt(10);
     var i = 0;
     var sign = if (parts[0] == "-") {
       i += 1;
@@ -271,11 +310,11 @@ export class Integer {
 
   public shl(n: Int): Integer {
     var got = abs.shl(n);
-    var zero = Natural.fromInt(0);
-    if (got.cmp(zero) == 0) {
-      return new Integer(false, zero);
+    if (got.isZero()) {
+      return new Integer(false, Natural.fromInt(0));
+    } else {
+      return new Integer(sign, got); 
     }
-    return new Integer(sign, got); 
   }
 
   public cmp(other: Integer): Int {
@@ -291,9 +330,8 @@ export class Integer {
   }
 
   public neg(): Integer {
-    var zero = Natural.fromInt(0);
-    if (abs.cmp(zero) == 0) {
-      return new Integer(false, zero);
+    if (abs.isZero()) {
+      return new Integer(false, Natural.fromInt(0));
     } else {
       return new Integer(!sign, abs);
     }
@@ -348,19 +386,11 @@ export class Integer {
     }
   }
 
-  public toHex(): String {
+  public toString(base: Int = 10): String {
     if (sign) {
-      return "-${abs.toHex()}";
+      return "-${abs.toString(base)}";
     } else {
-      return abs.toHex();
-    }
-  }
-
-  public toString(): String {
-    if (sign) {
-      return "-${abs.toString()}";
-    } else {
-      return abs.toString();
+      return abs.toString(base);
     }
   }
 

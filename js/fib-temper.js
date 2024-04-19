@@ -1,0 +1,15 @@
+
+import { Integer } from "bigint/bigint";
+
+let n = Number(process.argv[2]);
+let a = Integer.fromInt(0);
+let b = Integer.fromInt(1);
+for (let i = 0; i < n; i++) {
+    let tmp = a.add(b);
+    b = a;
+    a = tmp;
+}
+console.log(a.toString(10));
+
+//1394232245616978813972438287407283957025658769737264108962948325571622863290691557658876222521294125
+//139423224561697880139724382870407283950070256587697307264108962948325571622863290691557658876222521294125
