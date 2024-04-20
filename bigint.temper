@@ -149,6 +149,8 @@ export class Natural {
   public mul(other: Natural): Natural {
     var ret = Natural.fromInt(0);
     for (var i = 0; i < digits.length; i++) {
+      var digit = digits.getOr(i, 0);
+      
       var part = new ListBuilder<Int>();
       var carry = 0;
 
@@ -157,7 +159,6 @@ export class Natural {
       }
 
       for (var j = 0; j < other.digits.length; j++) {
-        var digit = digits.getOr(i, 0);
         var otherDigit = other.digits.getOr(j, 0);
         var value = digit * otherDigit + carry;
         carry = value / pow2;
