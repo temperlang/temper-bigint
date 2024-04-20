@@ -246,7 +246,7 @@ export class Natural {
     var nth = 1;
     var nBase = Natural.fromInt(base);
     var exp10nth = nBase;
-    while (cmp(exp10nth) > 0) {
+    while (cmp(exp10nth) >= 0) {
       exp10nth = exp10nth.mul(exp10nth);
       nth *= 2;
     }

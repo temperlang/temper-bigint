@@ -1,5 +1,5 @@
-import { Integer } from "temper-bigint";
 
+import { Integer } from 'temper-bigint';
 
 const pad = (obj, n) => {
   let res = obj.toString();
