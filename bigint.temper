@@ -7,7 +7,6 @@ for (var i = 0; i < bits; i++) {
   pow2 *= 2;
 }
 let digitChars = "0123456789abcdefghijklmnopqrstuvwxyz".split("");
-var nat10 = Natural.fromInt(10);
 var natPow10Cache = new ListBuilder<Natural>();
 
 let reverse<T>(lb: ListBuilder<T>): Void {
@@ -44,7 +43,7 @@ export class Natural {
     var ret = Natural.fromInt(0);
     var ten = Natural.fromInt(10);
     for (var i = 0; i < parts.length; i++) {
-      ret = ret.mul(ten).add(Natural.fromInt(parts[i].codePoints.read() - 48));
+      ret = ret.mul(ten).add(Natural.fromInt(parts[i][String.begin] - 48));
     }
     return ret;
   }
@@ -299,7 +298,7 @@ export class Integer {
     }
     while (i < parts.length) {
       ret = ret.mul(ten);
-      ret = ret.add(Natural.fromInt(parts[i].codePoints.read() - 48));
+      ret = ret.add(Natural.fromInt(parts[i][String.begin] - 48));
       i += 1;
     }
     return new Integer(sign, ret);
